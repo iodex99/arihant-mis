@@ -102,18 +102,27 @@ Columns: `Category`, `Amount`, `% of Revenue`.
 ### Percentage-of-revenue semantics
 
 ```
-correct:  pctOfRevenue = amount / revenue(S)          <-- default
-legacy:   pctOfRevenue = amount / SUM(revenue repeated per expense-head row)
+pctOfRevenue = amount / revenue(S)
 ```
 
-The legacy denominator reproduces the existing Looker report and is available
-behind an explicit **"Looker-compatible % (legacy)"** toggle for reconciliation
-during changeover. It is off by default and carries an inline warning. See
-data-dictionary §5 for the full analysis and proof.
+Revenue here is the revenue of the **same filter scope**, counted once per
+branch-period. The previous Looker report divided by a revenue figure repeated
+once per expense-head row, which is why its percentages are lower; see
+data-dictionary §5 for the arithmetic and the proof.
 
-Both modes are implemented in `src/lib/mis/expense-analysis.ts` and covered by
-tests that assert the legacy mode reproduces the PDF's 39.83 % / 22.43 % /
-17.67 % / 1.23 % figures exactly.
+A "Looker-compatible" toggle was considered and **deliberately not built**. The
+old denominator cannot be reproduced faithfully, because it was computed over
+the stale `Comparison` sheet, which covers only one of the two months and drops
+₹6.55 L of expense into `#N/A` and `null` groups. A toggle would therefore
+match neither the correct figure nor the historical one, which is worse than
+having no toggle at all.
+
+Instead, the change is made legible: the `% of Revenue` column carries an
+inline explanation, and this document plus data-dictionary §5 record the
+old and new figures side by side for the changeover.
+
+Note the same `Total Amount` reconciles exactly in both systems — only the
+denominator differed. Amounts were never wrong; percentages were.
 
 ## 7. Reconciliation
 

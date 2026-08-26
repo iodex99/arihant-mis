@@ -248,14 +248,25 @@ function normalizeFactSheet(sheet: SheetAnalysis, grid: unknown[][], ctx: SheetC
 
     const branchName = idx.branch === undefined ? null : cleanText(row[idx.branch]);
     const abbrRaw = idx.abbreviation === undefined ? null : cleanText(row[idx.abbreviation]);
-    // Branches are keyed on abbreviation because that is the reporting key
-    // (docs/data-dictionary.md §2.5). Fall back to the name when absent.
-    const abbreviation = abbrRaw ?? branchName ?? UNASSIGNED_BRANCH;
+
+    // Branches are keyed on abbreviation, because that is the reporting key and
+    // it is not 1:1 with the branch label (docs/data-dictionary.md §2.5).
+    //
+    // When the sheet has an abbreviation column but this row leaves it blank,
+    // all such rows form one "Unassigned" branch — falling back to the label
+    // would split them, and the reference report treats them as a single line.
+    // When there is no abbreviation column at all, the label is the key.
+    const hasAbbrColumn = idx.abbreviation !== undefined;
+    const abbreviation = abbrRaw ?? (hasAbbrColumn ? UNASSIGNED_BRANCH : (branchName ?? UNASSIGNED_BRANCH));
     const branchKey = normalizeAccountName(abbreviation);
+
     if (!ctx.dimensions.branches.has(branchKey)) {
       ctx.dimensions.branches.set(branchKey, {
         abbreviation,
-        name: branchName ?? abbreviation,
+        name:
+          abbreviation === UNASSIGNED_BRANCH
+            ? 'Unassigned (no branch code in source)'
+            : (branchName ?? abbreviation),
         centreKey,
         status: idx.status === undefined ? null : cleanText(row[idx.status]),
       });

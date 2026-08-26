@@ -316,11 +316,16 @@ revenue for that month, not 1.23 %. The denominator scales with the *number of
 expense heads charted*, so the percentage changes whenever a head is added.
 
 **Our implementation reports the correct percentage** (`amount / revenue for the
-same filter scope`). Because the client is accustomed to the old figures, the
-MIS exposes a documented toggle, **"Looker-compatible % (legacy)"**, which
-reproduces the old denominator for reconciliation during the changeover. It is
-**off by default** and labelled as a known defect in the UI. See
-[`mis-specification.md`](./mis-specification.md) §6.
+same filter scope`), giving **36.42 %** where the old report said 39.83 %.
+
+A "Looker-compatible" toggle was considered and deliberately not built: the old
+denominator was computed over the stale `Comparison` sheet, which covers only
+Oct'25 and loses Rs 6.55 L into `#N/A`/`null` groups, so no toggle could match
+the historical numbers either. The table above is the reconciliation record for
+the changeover. See [`mis-specification.md`](./mis-specification.md) §6.
+
+**The amounts themselves were never wrong** — `23,529,173.21` reconciles
+exactly in both systems. Only the percentages differed.
 
 ---
 

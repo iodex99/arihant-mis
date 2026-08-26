@@ -1,0 +1,572 @@
+// Arihant MIS — data model
+//
+// Two clearly separated layers:
+//   RAW      : exactly what arrived (import files/sheets/rows, tally payloads).
+//              Never mutated after write; the audit trail for every number.
+//   CANONICAL: dimensions + FactEntry, what the MIS engine queries.
+//
+// See docs/data-dictionary.md and docs/mis-specification.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy (single client today; the column exists so a second never needs a
+// destructive migration)
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  companies Company[]
+
+  @@map("organizations")
+}
+
+model Company {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  currency       String   @default("INR")
+  // Tally identity, populated when a sync runs. Null until then.
+  tallyCompanyName String?
+  tallyGuid        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branches   Branch[]
+  streams    Stream[]
+  centres    Centre[]
+  accounts   Account[]
+  periods    Period[]
+  facts      FactEntry[]
+  imports    Import[]
+  syncRuns   SyncRun[]
+  mappingProfiles MappingProfile[]
+
+  @@unique([organizationId, name])
+  @@map("companies")
+}
+
+// ---------------------------------------------------------------------------
+// Dimensions
+// ---------------------------------------------------------------------------
+
+/// Geographic region in the Arihant workbook (WESTERN / CENTRAL / ...).
+/// Deliberately NOT a Tally cost centre — see data-dictionary §7.
+model Centre {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branches Branch[]
+  facts    FactEntry[]
+
+  @@unique([companyId, name])
+  @@map("centres")
+}
+
+/// Keyed on `abbreviation` because that is what the reference report groups by
+/// and it is not 1:1 with `name` (data-dictionary §2.5).
+model Branch {
+  id           String  @id @default(cuid())
+  companyId    String
+  abbreviation String
+  name         String
+  centreId     String?
+  status       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  centre  Centre?     @relation(fields: [centreId], references: [id], onDelete: SetNull)
+  facts   FactEntry[]
+
+  @@unique([companyId, abbreviation])
+  @@index([companyId, centreId])
+  @@map("branches")
+}
+
+model Stream {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  facts   FactEntry[]
+
+  @@unique([companyId, name])
+  @@map("streams")
+}
+
+enum AccountKind {
+  REVENUE
+  EXPENSE
+}
+
+/// One row per income head or expense head. `groupHead` comes from the
+/// workbook's `Group head` sheet (or an admin override).
+model Account {
+  id         String      @id @default(cuid())
+  companyId  String
+  name       String
+  /// Uppercased, whitespace-collapsed form used for matching across imports.
+  normalized String
+  kind       AccountKind
+  groupHead  String      @default("Unclassified")
+  /// True when the group came from an explicit mapping rather than the fallback.
+  groupMapped Boolean    @default(false)
+  sortOrder  Int         @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  facts   FactEntry[]
+
+  @@unique([companyId, normalized])
+  @@index([companyId, kind])
+  @@index([companyId, groupHead])
+  @@map("accounts")
+}
+
+/// Monthly period with derived Indian-FY attributes.
+model Period {
+  id             String @id @default(cuid())
+  companyId      String
+  /// Source token exactly as written, e.g. "Oct'25".
+  label          String
+  year           Int
+  month          Int
+  quarter        String
+  financialYear  String
+  /// year*100 + month, for cheap chronological ordering.
+  sortKey        Int
+  /// Quarter as stated by the source, when the source stated one.
+  sourceQuarter  String?
+  createdAt      DateTime @default(now())
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  facts   FactEntry[]
+
+  @@unique([companyId, year, month])
+  @@index([companyId, financialYear])
+  @@index([companyId, sortKey])
+  @@map("periods")
+}
+
+// ---------------------------------------------------------------------------
+// Canonical fact table
+// ---------------------------------------------------------------------------
+
+enum DataSource {
+  FILE_IMPORT
+  TALLY_SYNC
+}
+
+model FactEntry {
+  id        String      @id @default(cuid())
+  companyId String
+  periodId  String
+  branchId  String
+  streamId  String
+  centreId  String?
+  accountId String
+  kind      AccountKind
+  /// Signed. Negative values are legitimate (provision reversals / contras).
+  amount    Decimal     @db.Decimal(18, 4)
+
+  source     DataSource
+  /// Provenance: the import that produced this fact, and the exact source row.
+  importId   String?
+  importRowId String?
+  syncRunId  String?
+
+  // Reserved for Tally-sourced detail. Null for file imports — the workbook is
+  // pre-aggregated and carries none of this (data-dictionary §7).
+  voucherDate   DateTime?
+  voucherType   String?
+  voucherNumber String?
+  ledgerName    String?
+  party         String?
+  narration     String?
+
+  createdAt DateTime @default(now())
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period  Period     @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  branch  Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  stream  Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  centre  Centre?    @relation(fields: [centreId], references: [id], onDelete: SetNull)
+  account Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  import  Import?    @relation(fields: [importId], references: [id], onDelete: Cascade)
+  importRow ImportRow? @relation(fields: [importRowId], references: [id], onDelete: SetNull)
+  syncRun SyncRun?   @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+
+  // Aggregation paths the MIS engine actually uses.
+  @@index([companyId, periodId])
+  @@index([companyId, kind, periodId])
+  @@index([companyId, branchId, periodId])
+  @@index([companyId, streamId, periodId])
+  @@index([companyId, accountId, periodId])
+  @@index([companyId, centreId, periodId])
+  @@index([importId])
+  @@map("fact_entries")
+}
+
+/// Denormalised source-row summary, kept for reconciliation against the facts.
+/// One row per ingested `Main data` row.
+model SourceRowSummary {
+  id        String  @id @default(cuid())
+  importId  String
+  importRowId String @unique
+  periodId  String
+  branchId  String
+  streamId  String
+
+  totalIncome      Decimal @db.Decimal(18, 4)
+  totalExpense     Decimal @db.Decimal(18, 4)
+  profit           Decimal @db.Decimal(18, 4)
+  totalRevenue     Decimal? @db.Decimal(18, 4)
+  indirectExpenses Decimal? @db.Decimal(18, 4)
+
+  import    Import    @relation(fields: [importId], references: [id], onDelete: Cascade)
+  importRow ImportRow @relation(fields: [importRowId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+  @@map("source_row_summaries")
+}
+
+// ---------------------------------------------------------------------------
+// RAW layer — imports
+// ---------------------------------------------------------------------------
+
+enum ImportStatus {
+  ANALYZING
+  AWAITING_CONFIRMATION
+  IMPORTING
+  COMPLETED
+  NEEDS_REVIEW
+  FAILED
+  CANCELLED
+}
+
+model Import {
+  id        String @id @default(cuid())
+  companyId String
+
+  filename    String
+  fileSize    Int
+  /// SHA-256 of the uploaded bytes; identical re-uploads are detectable.
+  fileHash    String
+  mimeType    String?
+  sourceType  DataSource @default(FILE_IMPORT)
+
+  status      ImportStatus @default(ANALYZING)
+  /// Full analysis result: detected sheets, header rows, column mappings,
+  /// confidence scores, warnings. Rendered by the import preview UI.
+  analysis    Json?
+  /// Mapping actually applied (after any user override).
+  appliedMapping Json?
+  mappingProfileId String?
+  mappingVersion   Int?
+
+  rowCount        Int @default(0)
+  factCount       Int @default(0)
+  /// Reconciliation outcome; see docs/mis-specification.md §7.
+  validationStatus String?
+  validation       Json?
+  errorMessage     String?
+
+  uploadedById String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  uploadedBy     User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  mappingProfile MappingProfile? @relation(fields: [mappingProfileId], references: [id], onDelete: SetNull)
+
+  files    ImportFile[]
+  sheets   ImportSheet[]
+  rows     ImportRow[]
+  facts    FactEntry[]
+  summaries SourceRowSummary[]
+
+  @@index([companyId, startedAt])
+  @@index([companyId, fileHash])
+  @@map("imports")
+}
+
+model ImportFile {
+  id        String @id @default(cuid())
+  importId  String
+  filename  String
+  /// Path on disk under UPLOAD_DIR. Files are pruned by retention policy;
+  /// the parsed rows below survive.
+  storagePath String?
+  byteSize  Int
+  createdAt DateTime @default(now())
+
+  import Import @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+  @@map("import_files")
+}
+
+model ImportSheet {
+  id        String @id @default(cuid())
+  importId  String
+  name      String
+  sheetIndex Int
+  /// 1-based row number where the real header was detected.
+  headerRow Int?
+  dataStartRow Int?
+  rowCount  Int   @default(0)
+  columnCount Int @default(0)
+  /// What the analyzer decided this sheet is: FACTS | MAPPING | DERIVED | SKIPPED
+  role      String
+  roleReason String?
+  headers   Json?
+
+  import Import @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rows   ImportRow[]
+
+  @@unique([importId, sheetIndex])
+  @@map("import_sheets")
+}
+
+/// Verbatim source row. Never rewritten — the provenance target of drill-down.
+model ImportRow {
+  id       String @id @default(cuid())
+  importId String
+  sheetId  String
+  /// 1-based row number in the original sheet.
+  rowNumber Int
+  /// Original header -> original cell value, exactly as read.
+  raw      Json
+  /// True for detected total/subtotal rows, which are excluded from facts and
+  /// used for validation instead (docs/parser.md §6).
+  isTotalRow Boolean @default(false)
+  skipped    Boolean @default(false)
+  skipReason String?
+
+  import Import      @relation(fields: [importId], references: [id], onDelete: Cascade)
+  sheet  ImportSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  facts  FactEntry[]
+  summary SourceRowSummary?
+
+  @@index([importId])
+  @@index([sheetId, rowNumber])
+  @@map("import_rows")
+}
+
+// ---------------------------------------------------------------------------
+// Mapping profiles — remembered column mappings (build spec §22)
+// ---------------------------------------------------------------------------
+
+model MappingProfile {
+  id        String @id @default(cuid())
+  companyId String
+  name      String
+  version   Int    @default(1)
+  /// Fingerprint of the detected sheet/header structure, used to decide
+  /// whether a new file matches this profile.
+  signature String
+  /// canonicalField -> source header, plus per-sheet role decisions.
+  mapping   Json
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  imports Import[]
+
+  @@unique([companyId, name, version])
+  @@index([companyId, signature])
+  @@map("mapping_profiles")
+}
+
+/// Admin-editable overrides: expense head -> group head, branch aliasing, etc.
+model MappingRule {
+  id        String @id @default(cuid())
+  companyId String
+  /// ACCOUNT_GROUP | BRANCH_ALIAS | STREAM_ALIAS | CENTRE_ALIAS
+  ruleType  String
+  sourceValue String
+  targetValue String
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, ruleType, sourceValue])
+  @@index([companyId, ruleType])
+  @@map("mapping_rules")
+}
+
+// ---------------------------------------------------------------------------
+// Tally sync
+// ---------------------------------------------------------------------------
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+model SyncRun {
+  id        String @id @default(cuid())
+  companyId String
+
+  adapter   String
+  trigger   String @default("MANUAL")
+  status    SyncStatus @default(RUNNING)
+
+  fromDate  DateTime?
+  toDate    DateTime?
+
+  recordsProcessed Int @default(0)
+  recordsAdded     Int @default(0)
+  recordsUpdated   Int @default(0)
+  recordsFailed    Int @default(0)
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  errorMessage String?
+  /// Adapter probe results, timings, discovered Tally version.
+  details    Json?
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  facts   FactEntry[]
+  errors  SyncError[]
+
+  @@index([companyId, startedAt])
+  @@map("sync_runs")
+}
+
+model SyncError {
+  id        String @id @default(cuid())
+  syncRunId String
+  stage     String
+  code      String
+  message   String
+  context   Json?
+  createdAt DateTime @default(now())
+
+  syncRun SyncRun @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+
+  @@index([syncRunId])
+  @@map("sync_errors")
+}
+
+/// Tally connection settings. Secrets live here server-side and are never
+/// serialised to the browser (build spec §28).
+model TallyConnection {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  adapter   String  @default("TALLY_XML_HTTP")
+  host      String  @default("localhost")
+  port      Int     @default(9000)
+  useHttps  Boolean @default(false)
+  tallyCompanyName String?
+  timeoutMs Int     @default(60000)
+  enabled   Boolean @default(false)
+  /// Adapter-specific extras. Redacted before leaving the server.
+  config    Json?
+
+  lastTestedAt      DateTime?
+  lastTestOk        Boolean?
+  lastTestMessage   String?
+  detectedVersion   String?
+  lastSuccessfulSyncAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tally_connections")
+}
+
+// ---------------------------------------------------------------------------
+// Auth & audit
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         UserRole @default(VIEWER)
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  imports   Import[]
+  sessions  Session[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  /// SHA-256 of the session token. The raw token exists only in the cookie.
+  tokenHash String   @unique
+  expiresAt DateTime
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model AuditLog {
+  id       String @id @default(cuid())
+  userId   String?
+  action   String
+  entity   String?
+  entityId String?
+  metadata Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+/// Small key/value store for app state (schema version, last backup, ...).
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}

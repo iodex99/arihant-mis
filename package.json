@@ -1,0 +1,55 @@
+{
+  "name": "arihant-mis",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Arihant Academy Tally-connected Financial MIS",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "db:local": "node scripts/local-db.mjs",
+    "seed:admin": "tsx scripts/seed-admin.ts",
+    "import:file": "tsx scripts/import-file.ts",
+    "verify:reference": "tsx scripts/verify-reference.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
+    "jose": "^5.9.6",
+    "next": "^15.1.3",
+    "papaparse": "^5.4.1",
+    "pino": "^9.5.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.2",
+    "@types/papaparse": "^5.3.15",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "autoprefixer": "^10.4.20",
+    "embedded-postgres": "^17.2.0-beta.15",
+    "postcss": "^8.4.49",
+    "prisma": "^6.1.0",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,29 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+!.env.example
+
+.pgdata/
+backups/
+uploads/
+logs/
+*.log
+coverage/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Client financial data — confidential, kept out of version control.
+# See docs/deployment.md for how to supply these on the server.
+for reference/
+*.xlsx
+*.xls
+!tests/fixtures/**/*.xlsx

@@ -152,7 +152,8 @@ No Docker needed — `scripts/local-db.mjs` runs real PostgreSQL binaries.
 
 ```bash
 npm install
-node scripts/local-db.mjs start        # prints a DATABASE_URL
+npm run db:local                       # prints a DATABASE_URL
+                                       # (alias for: node scripts/local-db.mjs start)
 ```
 
 In a second terminal:
@@ -191,6 +192,8 @@ npm run import:file -- "for reference/Arihant.xlsx"             # import
 | `LOG_LEVEL` | `info` | `debug` adds Tally request timings |
 | `TALLY_ENABLED` | `false` | Leave off until the connection test passes |
 | `TALLY_ADAPTER` / `TALLY_HOST` / `TALLY_PORT` / `TALLY_COMPANY_NAME` | `TALLY_XML_HTTP` / `localhost` / `9000` / — | Server-side only, never sent to the browser |
+| `TALLY_USE_HTTPS` / `TALLY_TIMEOUT_MS` | `false` / `60000` | Transport and request timeout |
+| `TALLY_SYNC_ENABLED` / `TALLY_SYNC_CRON` | `false` / hourly | Gate and suggested schedule for `npm run sync:tally`. The app has no in-process scheduler — see below |
 
 Full reference in [`docs/deployment.md`](docs/deployment.md).
 
@@ -220,6 +223,21 @@ Schedule nightly; copy off the server. See
 [`docs/backup-and-restore.md`](docs/backup-and-restore.md).
 
 ---
+
+## Scheduled jobs
+
+There is no in-process scheduler: the app is containerised, and a timer inside
+it would fire once per running copy. Periodic work is a cron entry on the host.
+
+```bash
+npm run maintenance -- --dry-run   # show what housekeeping would remove
+npm run maintenance                # prune expired source files, staging, sessions
+npm run sync:tally                 # scheduled Tally sync (no-op unless enabled)
+```
+
+Maintenance touches only derived artefacts. Parsed rows, facts, imports and the
+audit log are kept indefinitely. Cron examples in
+[`docs/deployment.md`](docs/deployment.md).
 
 ## Updating
 
@@ -257,7 +275,7 @@ environment-specific / untested breakdown.
 ## Tests
 
 ```bash
-npm test           # 142 tests
+npm test           # 150 tests
 npm run typecheck
 npm run verify:reference   # asserts every figure in the supplied PDF
 ```
@@ -267,7 +285,9 @@ formatted numbers, CSV, malformed input), the financial calculations and Indian
 fiscal-year logic, formatting, and — when the client workbook is present — the
 full reference report. Import deletion and the analytical reports are covered by
 database-backed suites that skip when no database is reachable and work in their
-own throwaway organizations.
+own throwaway organizations. A further suite checks the documentation itself
+for drift — broken links, undocumented report sheets, environment variables
+missing from the README, and references to scripts or files that no longer exist.
 
 ---
 
@@ -308,16 +328,21 @@ own throwaway organizations.
 ```
 docs/                 architecture, data dictionary, MIS spec, parser, Tally, ops
 prisma/               schema and migrations
-scripts/              seed, import, verify, backup, restore, update, local DB
+scripts/              seed, import, verify, backup, restore, update, maintenance,
+                      scheduled sync, local DB
 src/
-  app/                Next.js routes (dashboard, MIS, drill, imports, admin, API)
-  components/         UI, charts, tables, filters
+  app/(app)/          dashboard, tabular MIS, analysis, drill-down, imports, admin
+  app/api/            auth, imports (analyze/commit/delete), tally, mappings,
+                      export, health
+  components/         UI, tables, filters, charts (Charts, AnalysisCharts, palette)
   lib/
-    parser/           readers, structure, mapping, subtotals, analysis
+    parser/           readers, structure, mapping, subtotals, analyze
     normalization/    canonical model, periods, reconciliation
-    mis/              every financial calculation
+    mis/              engine (core reports), analysis (variance, concentration,
+                      cross-tabs, cost structure, positioning), drill, filters
     tally/            adapter interface, XML/HTTP adapter, sync engine
-    import/           persistence and staging
-tests/                parser, finance and reference-report suites
+    import/           persistence, staging, deletion
+    api.ts            route error handling (401/403 rather than 500)
+tests/                parser, finance, reference report, import deletion, analysis
 docker-compose.yml    the whole deployment
 ```

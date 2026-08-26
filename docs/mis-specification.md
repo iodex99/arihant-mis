@@ -65,6 +65,21 @@ Expected values for the unfiltered supplied dataset:
 | profit | 20,545,397.92 |
 | margin | 0.251855 (25.19 %) |
 
+## 3b. The Tabular MIS sheets
+
+Six sheets, lettered as they appear on the page:
+
+| Sheet | Report | Grouped by | Spec |
+|---|---|---|---|
+| A | Stream profitability | `stream` | §4 |
+| B | Branch profitability | `branch.abbreviation` | §5 |
+| C | Expense analysis | `account` | §6 |
+| D | Group analysis | `account.groupHead` | §6 |
+| E | Centre profitability | `centre` | §6b |
+| F | Comparison analysis | branch x group head | §8 |
+
+The **Analysis** page carries six further reports — see §8b.
+
 ## 4. Report A — Stream profitability
 
 Group by `stream`. Columns: `Stream`, `Revenue`, `Expense`, `Profit`,
@@ -124,6 +139,19 @@ old and new figures side by side for the changeover.
 Note the same `Total Amount` reconciles exactly in both systems — only the
 denominator differed. Amounts were never wrong; percentages were.
 
+## 6b. Report E — Centre profitability
+
+Group by `centre`, the geographic region in the source (`WESTERN`, `CENTRAL`,
+`General`, `Blank`, `Pending`). Columns: `Centre`, `Revenue`, `Expense`,
+`Profit`, `Profit Margin`, `% of total expense`.
+
+The previous report never broke this dimension out. Doing so shows one centre at
+a **-58 % margin** and another carrying Rs 23.6 L of expense against no revenue —
+neither visible in any of the original views.
+
+Note this `Centre` is a **geographic region, not a Tally cost centre**; see
+[`data-dictionary.md`](./data-dictionary.md) §7.
+
 ## 7. Reconciliation
 
 Run after every import and every sync. Four checks, each with a Rs 0.05 tolerance
@@ -143,7 +171,7 @@ A failing check sets the import's status to `NEEDS_REVIEW` and surfaces the
 signed difference. Imports are **never** silently accepted with a broken
 identity.
 
-## 8. Comparison analysis (PDF page 3)
+## 8. Report F — Comparison analysis (PDF page 3)
 
 Per-branch expense-group intensity: for each branch abbreviation and each of the
 10 group heads, `groupAmount / branchRevenue`.

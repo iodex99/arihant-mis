@@ -20,6 +20,7 @@ Nothing here claims a connection works. The connection test in
 | Connection test + capability probe | **Implemented.** Admin → Connection |
 | Sync engine (vouchers to canonical facts) | **Implemented.** `src/lib/tally/sync.ts` |
 | Sync history and error log | **Implemented.** |
+| Scheduled sync | **Implemented** as a cron-able script, gated (see §5). |
 | Connection to Arihant's Tally | **Not yet tested.** Requires access to the machine. |
 | JSON adapter | **Not implemented** — see §6. |
 | ODBC adapter | **Not implemented** — see §6. |
@@ -101,6 +102,17 @@ Tally-sourced facts carry detail the spreadsheet path cannot: voucher date,
 type, number, ledger name, party and narration. Those columns already exist on
 `FactEntry` and are null for file imports, so the drill-down gains a
 voucher-level leaf with no schema change.
+
+### Scheduling
+
+There is no in-process scheduler. `npm run sync:tally` is a cron-able script
+that refuses to run unless **both** `TALLY_SYNC_ENABLED=true` and the connection
+is enabled in Admin → Connection — so the cron entry can be added before
+connectivity has been confirmed without it doing anything. It exits non-zero on
+failure, so cron reports the problem rather than swallowing it.
+
+`TALLY_SYNC_CRON` in `.env` is documentation of the intended schedule; the
+application does not read it.
 
 ### Incremental sync
 

@@ -17,7 +17,9 @@
     "db:local": "node scripts/local-db.mjs",
     "seed:admin": "tsx scripts/seed-admin.ts",
     "import:file": "tsx scripts/import-file.ts",
-    "verify:reference": "tsx scripts/verify-reference.ts"
+    "verify:reference": "tsx scripts/verify-reference.ts",
+    "maintenance": "tsx scripts/maintenance.ts",
+    "sync:tally": "tsx scripts/sync-tally.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",

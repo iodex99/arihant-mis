@@ -139,11 +139,35 @@ the session cookie `Secure`.
 | `LOG_LEVEL` | `info` | `debug` logs Tally request timings |
 | `TALLY_*` | disabled | See [`tally-integration.md`](./tally-integration.md) |
 
-## Scheduling a nightly backup
+## Scheduled jobs
+
+There is **no in-process scheduler**. The app runs in a container that may be
+restarted or scaled, and a timer inside it would fire zero times or several
+depending on how many copies happen to be up. Everything periodic is a cron
+entry on the host, which is visible, testable and skippable.
 
 ```bash
 crontab -e
+```
+
+```cron
+# Nightly backup
 0 2 * * * cd /opt/arihant-mis && ./scripts/backup.sh >> /var/log/arihant-mis-backup.log 2>&1
+
+# Weekly housekeeping: prune source files past UPLOAD_RETENTION_DAYS, sweep
+# abandoned uploads, remove expired sessions. Never touches financial records.
+30 2 * * 0 cd /opt/arihant-mis && docker compose exec -T app npx tsx scripts/maintenance.ts >> /var/log/arihant-mis-maintenance.log 2>&1
+
+# Hourly Tally sync. Does nothing unless TALLY_SYNC_ENABLED=true and the
+# connection is enabled in Admin -> Connection, so it is safe to add before
+# Tally connectivity has been confirmed.
+0 * * * * cd /opt/arihant-mis && docker compose exec -T app npx tsx scripts/sync-tally.ts >> /var/log/arihant-mis-sync.log 2>&1
+```
+
+Check what maintenance would do before scheduling it:
+
+```bash
+docker compose exec app npx tsx scripts/maintenance.ts --dry-run
 ```
 
 On Windows Server, use Task Scheduler to run

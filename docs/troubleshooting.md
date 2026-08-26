@@ -25,6 +25,41 @@ docker compose logs --tail=100 app
 is not answering. `curl localhost:3000/api/health` will show
 `"database":"unreachable"`.
 
+### `/api/health` reports a non-UTF8 encoding
+
+```json
+{"status":"degraded","encoding":"WIN1252","warning":"The database was created with WIN1252 encoding, not UTF8 …"}
+```
+
+This is serious and worth fixing before loading real data. A non-UTF8 database
+**rejects** — does not mangle, rejects — any row containing the rupee sign, a
+curly quote, an en dash or Indian-language characters:
+
+```
+character with byte sequence 0xe2 0x82 0xb9 in encoding "UTF8"
+has no equivalent in encoding "WIN1252"
+```
+
+An import fails on one branch name; a Tally sync fails writing an error message.
+
+Encoding is fixed at database creation and cannot be changed in place.
+`docker-compose.yml` sets `POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"`,
+so a deployment created from this repository is correct. A database created
+before that setting, or by hand on a Windows host, may not be. To fix:
+
+```bash
+./scripts/backup.sh                                   # dump the existing data
+docker compose down
+docker volume rm arihant-mis-postgres-data            # destroys the database
+docker compose up -d postgres                         # recreated as UTF8
+./scripts/restore.sh backups/<the dump you just took>
+docker compose up -d
+curl -s localhost:3000/api/health                     # expect "encoding":"UTF8"
+```
+
+For local development, `node scripts/local-db.mjs reset` then `start` recreates
+the cluster with the correct flags.
+
 ---
 
 ## Sign-in

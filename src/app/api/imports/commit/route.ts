@@ -4,7 +4,7 @@ import { requireImporter } from '@/lib/auth';
 import { requireCompany } from '@/lib/company';
 import { prepareImport, commitImport } from '@/lib/import/persist';
 import { readStagedFile, keepFile, discardStaged } from '@/lib/import/storage';
-import { handleError } from '../analyze/route';
+import { toImportErrorResponse } from '@/lib/api';
 
 export const maxDuration = 300;
 
@@ -68,6 +68,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    return handleError(error);
+    return toImportErrorResponse(error);
   }
 }

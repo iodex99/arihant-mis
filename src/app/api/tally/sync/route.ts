@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { requireCompany } from '@/lib/company';
 import { runSync } from '@/lib/tally/sync';
+import { toErrorResponse } from '@/lib/api';
 
 export const maxDuration = 300;
 
@@ -12,18 +13,22 @@ const schema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const user = await requireAdmin();
-  const company = await requireCompany();
+  try {
+    const user = await requireAdmin();
+    const company = await requireCompany();
 
-  const parsed = schema.safeParse(await request.json().catch(() => ({})));
-  const body = parsed.success ? parsed.data : {};
+    const parsed = schema.safeParse(await request.json().catch(() => ({})));
+    const body = parsed.success ? parsed.data : {};
 
-  const result = await runSync(company.id, {
-    from: body.from ? new Date(body.from) : undefined,
-    to: body.to ? new Date(body.to) : undefined,
-    trigger: 'MANUAL',
-    userId: user.id,
-  });
+    const result = await runSync(company.id, {
+      from: body.from ? new Date(body.from) : undefined,
+      to: body.to ? new Date(body.to) : undefined,
+      trigger: 'MANUAL',
+      userId: user.id,
+    });
 
-  return NextResponse.json(result, { status: result.status === 'FAILED' ? 502 : 200 });
+    return NextResponse.json(result, { status: result.status === 'FAILED' ? 502 : 200 });
+  } catch (error) {
+    return toErrorResponse(error, 'tally.sync');
+  }
 }

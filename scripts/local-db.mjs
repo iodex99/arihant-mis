@@ -30,6 +30,13 @@ const pg = new EmbeddedPostgres({
   password: PASSWORD,
   port: PORT,
   persistent: true,
+  // Must match docker-compose.yml. Without this, initdb on Windows creates a
+  // WIN1252 cluster, and every non-ASCII character — the rupee sign, a curly
+  // quote, an arrow in an error message, any Devanagari in a branch name —
+  // fails to write with "no equivalent in encoding WIN1252". Production would
+  // have been fine and only development broken, which is the worst way round:
+  // the bug would not surface until real data hit the real server.
+  initdbFlags: ['--encoding=UTF8', '--locale=C'],
 });
 
 async function start() {

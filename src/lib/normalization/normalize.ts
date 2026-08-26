@@ -208,6 +208,16 @@ function normalizeFactSheet(sheet: SheetAnalysis, grid: unknown[][], ctx: SheetC
   const totalRows = new Set(sheet.totalRowNumbers);
   const start = (sheet.dataStartRow ?? 2) - 1;
 
+  // Register every account column as a dimension member up front, even if it
+  // holds nothing but zeros this period. Five of the workbook's 53 expense
+  // heads are entirely zero; deriving the account list from the facts alone
+  // would hide them from the group analysis and from the mappings screen, so an
+  // administrator could not pre-assign a group to a head before it first
+  // carries an amount. Same reasoning as keeping dormant branches and streams.
+  for (const acc of accountColumns) {
+    registerAccount(ctx, acc.accountName ?? 'Unknown', acc.accountKind ?? 'EXPENSE');
+  }
+
   // In a LONG sheet, revenue is repeated on every account row; count it once
   // per (period, branch, stream) or the total multiplies by the head count.
   const seenLongRevenue = new Set<string>();

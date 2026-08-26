@@ -1,0 +1,73 @@
+# Arihant MIS — single-file deployment for the Arihant server.
+#
+#   cp .env.example .env      # then edit the passwords and AUTH_SECRET
+#   docker compose up -d
+#
+# No VPS required: this runs entirely on the Arihant machine.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: arihant-mis-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-arihant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-arihant_mis}
+      # Deterministic collation, so ORDER BY does not change under a base-image
+      # upgrade and silently reorder reports.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    volumes:
+      # A named volume, deliberately: `docker compose down` leaves it alone, so
+      # an application update cannot delete the financial data.
+      - postgres-data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arihant} -d ${POSTGRES_DB:-arihant_mis}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    # Not published to the host by default; only the app container reaches it.
+    expose:
+      - "5432"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: arihant-mis:${APP_VERSION:-latest}
+    container_name: arihant-mis-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-arihant}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-arihant_mis}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      UPLOAD_DIR: /app/uploads
+      UPLOAD_RETENTION_DAYS: ${UPLOAD_RETENTION_DAYS:-180}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Tally settings. Left disabled until the connection test succeeds
+      # against Arihant's own Tally machine.
+      TALLY_ENABLED: ${TALLY_ENABLED:-false}
+      TALLY_ADAPTER: ${TALLY_ADAPTER:-TALLY_XML_HTTP}
+      TALLY_HOST: ${TALLY_HOST:-host.docker.internal}
+      TALLY_PORT: ${TALLY_PORT:-9000}
+      TALLY_USE_HTTPS: ${TALLY_USE_HTTPS:-false}
+      TALLY_COMPANY_NAME: ${TALLY_COMPANY_NAME:-}
+      TALLY_TIMEOUT_MS: ${TALLY_TIMEOUT_MS:-60000}
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    # Lets the container reach Tally running on the host machine.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  postgres-data:
+    name: arihant-mis-postgres-data
+  uploads:
+    name: arihant-mis-uploads

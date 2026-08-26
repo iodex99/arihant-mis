@@ -33,7 +33,10 @@ export function isBlank(value: unknown): boolean {
   return false;
 }
 
-const CURRENCY_CHARS = /[₹$£€¥]|\bRS\.?\b|\bINR\b/gi;
+// The boundary is anchored on the letters, not after the optional dot:
+// `\bRS\.?\b` never matches "Rs. 1,234" because a dot followed by a space
+// offers no word boundary, so the symbol survives and the value fails to parse.
+const CURRENCY_CHARS = /[₹$£€¥]|\bRS\b\.?|\bINR\b/gi;
 const ERROR_TOKENS = new Set([
   '#N/A', '#REF!', '#VALUE!', '#DIV/0!', '#NAME?', '#NULL!', '#NUM!', 'NA', 'N/A', '-', '--',
 ]);

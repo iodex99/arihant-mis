@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+.pgdata
+backups
+uploads
+logs
+coverage
+*.log
+for reference
+tests
+docs
+*.md
+!README.md

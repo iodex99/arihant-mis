@@ -41,7 +41,7 @@ export function detectHeaderRow(rows: unknown[][]): { headerRow: number; dataSta
     if (filled.length < 2) continue;
 
     // Density across the row's own span.
-    const lastFilled = cells.reduce((acc, c, idx) => (c !== null ? idx : acc), -1);
+    const lastFilled = cells.reduce<number>((acc, c, idx) => (c !== null ? idx : acc), -1);
     const span = lastFilled + 1;
     const density = filled.length / Math.max(span, 1);
 

@@ -82,7 +82,7 @@ function normalizeCell(value: ExcelJS.CellValue): unknown {
   if (typeof value === 'string' || typeof value === 'boolean') return value;
 
   if (typeof value === 'object') {
-    const v = value as Record<string, unknown>;
+    const v = value as unknown as Record<string, unknown>;
 
     // Formula cell: use the cached result.
     if ('result' in v) {

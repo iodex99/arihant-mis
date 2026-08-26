@@ -8,6 +8,7 @@ import type { UserRole } from '@prisma/client';
 const LINKS = [
   { href: '/', label: 'Dashboard', exact: true },
   { href: '/mis', label: 'Tabular MIS' },
+  { href: '/analysis', label: 'Analysis' },
   { href: '/drill', label: 'Drill-down' },
   { href: '/imports', label: 'Imports' },
   { href: '/admin', label: 'Admin', adminOnly: true },

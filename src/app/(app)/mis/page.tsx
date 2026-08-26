@@ -39,7 +39,7 @@ export default async function MisPage({
     );
   }
 
-  const [options, kpis, streams, branches, accounts, groups, matrix] = await Promise.all([
+  const [options, kpis, streams, branches, accounts, groups, matrix, centres] = await Promise.all([
     getFilterOptions(company.id),
     getKpis(company.id, filters),
     getByDimension(company.id, filters, 'stream'),
@@ -47,6 +47,7 @@ export default async function MisPage({
     getExpenseAnalysis(company.id, filters, 'account'),
     getExpenseAnalysis(company.id, filters, 'group'),
     getComparisonMatrix(company.id, filters),
+    getByDimension(company.id, filters, 'centre'),
   ]);
 
   const streamColumns: Column<(typeof streams)[number]>[] = [
@@ -98,6 +99,26 @@ export default async function MisPage({
       header: '% of total expense',
       format: 'percent',
       optional: true,
+      footer: { kind: 'constant', value: 1 },
+    },
+  ];
+
+  const centreColumns: Column<(typeof centres)[number]>[] = [
+    { key: 'label', header: 'Centre', format: 'text', linkTemplate: '/drill?centre=%s' },
+    { key: 'revenue', header: 'Revenue', format: 'currency', footer: { kind: 'sum' } },
+    { key: 'expense', header: 'Expense', format: 'currency', footer: { kind: 'sum' } },
+    { key: 'profit', header: 'Profit', format: 'currency', signed: true, footer: { kind: 'sum' } },
+    {
+      key: 'margin',
+      header: 'Profit margin',
+      format: 'percent',
+      signed: true,
+      footer: { kind: 'ratio', numerator: 'profit', denominator: 'revenue' },
+    },
+    {
+      key: 'shareOfExpense',
+      header: '% of total expense',
+      format: 'percent',
       footer: { kind: 'constant', value: 1 },
     },
   ];
@@ -208,9 +229,20 @@ export default async function MisPage({
           </p>
         </SectionCard>
 
+        <SectionCard id="centre" title="E. Centre profitability" subtitle="Revenue, expense and profit by geographic centre">
+          <DataTable
+            columns={centreColumns}
+            rows={centres}
+            initialSort={{ key: 'revenue', direction: 'desc' }}
+            showFooter
+            searchKeys={['label']}
+            caption="Centre profitability"
+          />
+        </SectionCard>
+
         <SectionCard
           id="comparison"
-          title="E. Comparison analysis"
+          title="F. Comparison analysis"
           subtitle="Each expense group as a share of that branch’s own revenue"
         >
           <ComparisonMatrix matrix={matrix} />

@@ -32,6 +32,10 @@ route, until Tally connectivity has been confirmed on Arihant's own server.
   global filters, sortable tables and exports.
 * **A management dashboard** with KPI cards, trends, composition and rankings,
   all driven by the same filters.
+* **Six analytical reports** beyond the original MIS: period variance, centre
+  and status, stream-by-branch margin, profit concentration, cost structure and
+  scale-against-margin — with the accounting artefacts that would mislead you
+  called out rather than left to be discovered.
 * **Drill-down** from branch to expense group to expense head to the exact
   spreadsheet row a figure came from.
 * **A Tally adapter** with a connection test and capability probe. Read-only by
@@ -253,7 +257,7 @@ environment-specific / untested breakdown.
 ## Tests
 
 ```bash
-npm test           # 124 tests
+npm test           # 142 tests
 npm run typecheck
 npm run verify:reference   # asserts every figure in the supplied PDF
 ```
@@ -261,8 +265,9 @@ npm run verify:reference   # asserts every figure in the supplied PDF
 Covers the parser (reordered columns, renamed columns, title and total rows,
 formatted numbers, CSV, malformed input), the financial calculations and Indian
 fiscal-year logic, formatting, and — when the client workbook is present — the
-full reference report. Import deletion is covered by a database-backed suite that
-skips when no database is reachable and works in its own throwaway organization.
+full reference report. Import deletion and the analytical reports are covered by
+database-backed suites that skip when no database is reachable and work in their
+own throwaway organizations.
 
 ---
 

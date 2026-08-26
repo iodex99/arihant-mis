@@ -48,6 +48,7 @@ changes nothing above the normalizer.
 | Persistence | `src/lib/import/persist.ts` | Transactional write of an import |
 | Tally | `src/lib/tally/` | Adapter interface, XML/HTTP adapter, sync engine |
 | MIS engine | `src/lib/mis/` | Every financial calculation |
+| Analysis | `src/lib/mis/analysis.ts` | Variance, concentration, cross-tabs, cost structure, positioning |
 | UI | `src/app/`, `src/components/` | Presentation only |
 
 **Financial logic lives in `src/lib/mis/`, never in a React component.** A

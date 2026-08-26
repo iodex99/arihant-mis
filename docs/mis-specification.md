@@ -159,6 +159,65 @@ single company-wide figure by each branch's revenue slice. We label this row
 **"Unallocated (company-wide)"** and show it once rather than repeating a
 misleading per-branch figure.
 
+## 8b. Analytical reports
+
+Six reports beyond the reproduction of the original MIS, on the **Analysis**
+page. Each is aggregated in SQL like everything else.
+
+### A. Period variance
+
+Compares the two most recent periods in scope, by expense head, branch and
+stream.
+
+**Centrally-booked groups are separated from operating movement.** A group whose
+head matches `/unallocated/i` is booked once company-wide rather than per
+branch, and its movements swamp everything else. The report therefore publishes
+both `expense` and `operatingExpense`, and raises a **distortion flag** when the
+central movement is at least half the headline movement.
+
+This is not hypothetical. In the supplied data, profit appears to fall from
+Rs 1.61 Cr to Rs 44.5 L between Oct'25 and Nov'25 — a 72 % collapse. It is an
+artefact: October carried a DEPRECIATION credit of −Rs 1.51 Cr and a GRATUITY
+credit of −Rs 13 L, which reduced that month's expense. On operating expense
+alone, November *improved* by Rs 10.98 L, and operating profit rose from
+Rs 10.25 L to Rs 44.50 L. Reporting the headline without this flag would invite
+exactly the wrong conclusion.
+
+### B. Centre and branch status
+
+Two dimensions present in the source but absent from the previous report.
+Centre revealed a centre at −58 % margin; status revealed that branches marked
+`Blank` carry Rs 1.39 Cr of expense against Rs 55.7 L of revenue.
+
+### C. Stream by branch
+
+Margin, revenue or profit for every branch/stream combination that trades.
+Shaded on the **90th percentile**, not the maximum: one combination with a few
+hundred rupees of revenue produces a margin in the thousands of percent, which
+would flatten every other cell to white. Cells past the cap saturate, and the
+true figure is always printed.
+
+### D. Concentration
+
+Branches ranked by profit contribution, with the cumulative share. Answers how
+few branches carry the business — nine of twenty-three, in the supplied data.
+Loss-making branches are excluded from the curve, because a loss has no share of
+a positive total, and are counted separately.
+
+### E. Cost structure
+
+Each branch's spend by group head, normalised to 100 % so branches of different
+size are comparable, against the **median** branch. The median, not the mean, so
+one outlier does not move the benchmark. Centrally-booked groups are excluded —
+spreading one company-wide figure across branches invents a pattern.
+
+### F. Scale against margin
+
+Revenue against margin, split at the company medians rather than at zero or a
+target, because the question is which branches are unlike their peers. Four
+quadrants, with the large/thin-margin quadrant called out as the largest
+opportunity.
+
 ## 9. Filters
 
 Shared across dashboard, tabular MIS and exports:

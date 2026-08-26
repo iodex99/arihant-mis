@@ -87,6 +87,26 @@ covers, then writes the new ones — inside one transaction. A corrected file
 supersedes the original instead of doubling every figure. Previous `Import`
 records and their raw rows are never deleted, so history stays queryable.
 
+## Deleting an import
+
+Administrators only — an analyst may add data but not remove it.
+
+Facts, raw rows, sheets and row summaries cascade from the `Import` row.
+Dimension members do **not**: they are shared across imports, a branch that
+traded in a deleted period is still a real branch, and removing them would
+discard group mappings an administrator had configured.
+
+The consequence is not obvious, so the confirmation dialog computes it rather
+than asking "are you sure?". Because a re-import *replaces* a period's facts,
+deleting the most recent import does not roll back to the one before it — those
+facts are already gone. `assessDeletion` reports exactly which periods would be
+left with no data at all, and the dialog leads with that.
+
+An `IMPORT_DELETED` audit entry is written inside the same transaction, before
+the delete, recording the filename, row and entry counts, totals and periods. The
+fact that the import existed and was removed therefore survives its own deletion.
+Recovering the data itself means restoring a backup.
+
 ## Performance
 
 Reports are never computed from raw rows in the browser.

@@ -253,7 +253,7 @@ environment-specific / untested breakdown.
 ## Tests
 
 ```bash
-npm test           # 117 tests
+npm test           # 124 tests
 npm run typecheck
 npm run verify:reference   # asserts every figure in the supplied PDF
 ```
@@ -261,7 +261,8 @@ npm run verify:reference   # asserts every figure in the supplied PDF
 Covers the parser (reordered columns, renamed columns, title and total rows,
 formatted numbers, CSV, malformed input), the financial calculations and Indian
 fiscal-year logic, formatting, and — when the client workbook is present — the
-full reference report.
+full reference report. Import deletion is covered by a database-backed suite that
+skips when no database is reachable and works in its own throwaway organization.
 
 ---
 
@@ -271,10 +272,10 @@ full reference report.
   stored.
 * bcrypt password hashing at cost 12; constant-time login regardless of whether
   the account exists.
-* Roles: `ADMIN`, `ANALYST`, `VIEWER`.
+* Roles: `ADMIN`, `ANALYST`, `VIEWER`. Deleting an import is `ADMIN`-only, enforced in the API as well as the UI.
 * Tally connection settings are server-side only; adapter credentials never
   reach the browser.
-* Audit log for logins, imports, sync runs and mapping changes.
+* Audit log for logins, imports, deletions, sync runs and mapping changes. A deletion's audit entry is written before the delete, so it survives it.
 * Logs redact passwords, tokens, cookies, `AUTH_SECRET` and `DATABASE_URL`.
 * No financial data is sent to any external service.
 

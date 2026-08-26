@@ -146,6 +146,25 @@ The mapping sheet has no group for it. **Nothing is lost** — its amount is in
 every total. Assign it in **Admin → Mappings**, and the assignment is remembered
 for future imports.
 
+### I deleted an import and the figures vanished
+
+Expected, and the dialog says so before you confirm. Re-importing a period
+*replaces* its figures rather than adding to them, so deleting an import does not
+restore whatever was there before it — that data was already superseded.
+
+Re-import the file to restore those months. If the file is gone, restore a
+database backup (see [`backup-and-restore.md`](./backup-and-restore.md)).
+
+**Admin → the audit log** retains an `IMPORT_DELETED` entry naming the file, its
+totals and the affected periods, so what was removed is always recoverable as a
+record even when the data is not.
+
+### The delete button is not there
+
+Deleting financial records is restricted to `ADMIN`. An `ANALYST` can import but
+not delete; a `VIEWER` can do neither. The API enforces this too, so the control
+being hidden is not the only protection.
+
 ### A whole sheet was skipped as "derived"
 
 Deliberate. A sheet that is a subset or rollup of the main sheet would

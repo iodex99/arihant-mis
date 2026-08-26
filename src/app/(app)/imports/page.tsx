@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { requireCompany } from '@/lib/company';
+import { getSessionUser } from '@/lib/auth';
+import DeleteImportButton from '@/components/DeleteImportButton';
 import SectionCard from '@/components/SectionCard';
 import EmptyState from '@/components/EmptyState';
 import { formatBytes, formatDateTime, formatCurrency } from '@/lib/format';
@@ -10,6 +12,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function ImportsPage() {
   const company = await requireCompany();
+  const user = await getSessionUser();
+  // Only an administrator may remove financial records.
+  const canDelete = user?.role === 'ADMIN';
 
   const imports = await prisma.import.findMany({
     where: { companyId: company.id },
@@ -54,6 +59,7 @@ export default async function ImportsPage() {
                 <th className="num">Revenue</th>
                 <th className="num">Expense</th>
                 <th className="num">Size</th>
+                {canDelete && <th className="sr-only">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -74,6 +80,11 @@ export default async function ImportsPage() {
                     <td className="num">{totals ? formatCurrency(totals.revenue) : '—'}</td>
                     <td className="num">{totals ? formatCurrency(totals.expense) : '—'}</td>
                     <td className="num text-ink-faint">{formatBytes(imp.fileSize)}</td>
+                    {canDelete && (
+                      <td className="text-right">
+                        <DeleteImportButton importId={imp.id} />
+                      </td>
+                    )}
                   </tr>
                 );
               })}

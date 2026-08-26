@@ -4,6 +4,8 @@ import { parseFilters, describeFilters, serializeFilters } from '@/lib/mis/filte
 import { getFilterOptions, getTrend } from '@/lib/mis/engine';
 import { drill, getSourceRows } from '@/lib/mis/drill';
 import FilterBar from '@/components/FilterBar';
+import EmptyState from '@/components/EmptyState';
+import { prisma } from '@/lib/db';
 import SectionCard from '@/components/SectionCard';
 import KpiCard from '@/components/KpiCard';
 import { TrendChart } from '@/components/charts/Charts';
@@ -31,6 +33,20 @@ export default async function DrillPage({
     group: one('group'),
     account: one('account'),
   };
+
+  // Deleting the last import leaves the dimensions in place, so the drill page
+  // would otherwise render a scaffold of zeros rather than saying there is no
+  // data. Match the dashboard and the tabular MIS.
+  const factCount = await prisma.factEntry.count({ where: { companyId: company.id } });
+  if (factCount === 0) {
+    return (
+      <EmptyState
+        title="No financial data available"
+        body="Connect Tally or upload an Excel/CSV file to generate the MIS."
+        action={{ href: '/imports/new', label: 'Upload Excel or CSV' }}
+      />
+    );
+  }
 
   const [options, result, trend] = await Promise.all([
     getFilterOptions(company.id),

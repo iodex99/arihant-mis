@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { requireCompany } from '@/lib/company';
+import { getSessionUser } from '@/lib/auth';
+import DeleteImportButton from '@/components/DeleteImportButton';
 import SectionCard from '@/components/SectionCard';
 import { formatBytes, formatCurrency, formatDateTime, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -29,6 +31,8 @@ interface AnalysisJson {
 export default async function ImportDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const company = await requireCompany();
+  const user = await getSessionUser();
+  const canDelete = user?.role === 'ADMIN';
 
   const imp = await prisma.import.findFirst({
     where: { id, companyId: company.id },
@@ -47,15 +51,18 @@ export default async function ImportDetailPage({ params }: { params: Promise<{ i
 
   return (
     <>
-      <header className="mb-5">
-        <Link href="/imports" className="text-xs text-accent hover:underline">
-          ← All imports
-        </Link>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">{imp.filename}</h1>
-        <p className="mt-0.5 text-sm text-ink-muted">
-          {formatDateTime(imp.finishedAt ?? imp.startedAt)} · {imp.uploadedBy?.name ?? 'system'} ·{' '}
-          {formatBytes(imp.fileSize)}
-        </p>
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link href="/imports" className="text-xs text-accent hover:underline">
+            ← All imports
+          </Link>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight">{imp.filename}</h1>
+          <p className="mt-0.5 text-sm text-ink-muted">
+            {formatDateTime(imp.finishedAt ?? imp.startedAt)} · {imp.uploadedBy?.name ?? 'system'} ·{' '}
+            {formatBytes(imp.fileSize)}
+          </p>
+        </div>
+        {canDelete && <DeleteImportButton importId={imp.id} variant="button" redirectTo="/imports" />}
       </header>
 
       <div className="grid gap-4 lg:grid-cols-3">

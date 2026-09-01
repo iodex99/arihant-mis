@@ -52,7 +52,7 @@ docker compose logs -f app     # watch it migrate and start
 Migrations run automatically on start. Create the first administrator:
 
 ```bash
-docker compose exec app node scripts/seed-admin.js \
+docker compose exec app node dist/cli/seed-admin.js \
   --email admin@arihant.in \
   --password 'a-strong-password' \
   --name 'Administrator'
@@ -60,10 +60,17 @@ docker compose exec app node scripts/seed-admin.js \
 
 > If that script is not present in the image, run it from a checkout on the host
 > with `DATABASE_URL` pointed at the container, or use
-> `docker compose exec app npx tsx scripts/seed-admin.ts …`.
+> `docker compose exec app node dist/cli/seed-admin.js …`.
 
 Open `http://<server>:3000`, sign in, and follow the first-run prompt: either
 test the Tally connection or upload the Excel export.
+
+> **Why `dist/cli` and not `scripts/`.** The image is a Next.js standalone
+> build: it carries only the modules the web app traces, so there is no `src/`
+> and no `tsx` in it. The operational commands are bundled to plain JavaScript
+> at build time (`scripts/build-cli.mjs`) precisely so they run on the server
+> with nothing extra installed. Use the `.ts` versions via `npm run` in
+> development, and `node dist/cli/<name>.js` inside the container.
 
 ## Verifying the install
 
@@ -82,8 +89,8 @@ validated; nothing is imported until you confirm.
 **From the command line**, useful for the first bulk load:
 
 ```bash
-docker compose exec app npx tsx scripts/import-file.ts /app/uploads/Arihant.xlsx --dry-run
-docker compose exec app npx tsx scripts/import-file.ts /app/uploads/Arihant.xlsx
+docker compose exec app node dist/cli/import-file.js /app/uploads/Arihant.xlsx --dry-run
+docker compose exec app node dist/cli/import-file.js /app/uploads/Arihant.xlsx
 ```
 
 `--dry-run` prints the analysis, the reconciliation checks and the totals without
@@ -156,18 +163,18 @@ crontab -e
 
 # Weekly housekeeping: prune source files past UPLOAD_RETENTION_DAYS, sweep
 # abandoned uploads, remove expired sessions. Never touches financial records.
-30 2 * * 0 cd /opt/arihant-mis && docker compose exec -T app npx tsx scripts/maintenance.ts >> /var/log/arihant-mis-maintenance.log 2>&1
+30 2 * * 0 cd /opt/arihant-mis && docker compose exec -T app node dist/cli/maintenance.js >> /var/log/arihant-mis-maintenance.log 2>&1
 
 # Hourly Tally sync. Does nothing unless TALLY_SYNC_ENABLED=true and the
 # connection is enabled in Admin -> Connection, so it is safe to add before
 # Tally connectivity has been confirmed.
-0 * * * * cd /opt/arihant-mis && docker compose exec -T app npx tsx scripts/sync-tally.ts >> /var/log/arihant-mis-sync.log 2>&1
+0 * * * * cd /opt/arihant-mis && docker compose exec -T app node dist/cli/sync-tally.js >> /var/log/arihant-mis-sync.log 2>&1
 ```
 
 Check what maintenance would do before scheduling it:
 
 ```bash
-docker compose exec app npx tsx scripts/maintenance.ts --dry-run
+docker compose exec app node dist/cli/maintenance.js --dry-run
 ```
 
 On Windows Server, use Task Scheduler to run

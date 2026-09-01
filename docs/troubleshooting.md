@@ -76,7 +76,7 @@ docker compose exec postgres psql -U arihant -d arihant_mis \
 **"No accounts yet."** A fresh install. Create the first administrator:
 
 ```bash
-docker compose exec app npx tsx scripts/seed-admin.ts \
+docker compose exec app node dist/cli/seed-admin.js \
   --email you@arihant.in --password 'a-strong-password' --name 'Your Name'
 ```
 

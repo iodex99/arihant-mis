@@ -137,7 +137,7 @@ Then:
 ```bash
 docker compose up -d
 
-docker compose exec app npx tsx scripts/seed-admin.ts \
+docker compose exec app node dist/cli/seed-admin.js \
   --email admin@arihant.in --password 'a-strong-password' --name 'Administrator'
 ```
 

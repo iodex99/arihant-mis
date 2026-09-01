@@ -43,7 +43,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_module
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --chown=nextjs:nodejs docker/entrypoint.sh ./entrypoint.sh
-COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+
+# Operational commands, pre-bundled to plain JavaScript.
+#
+# The raw scripts/*.ts cannot run here: they import from src/, which the
+# standalone build does not include, and the image has no tsx. Without this the
+# first administrator could not be created on a fresh deployment.
+COPY --from=builder --chown=nextjs:nodejs /app/dist/cli ./dist/cli
 
 RUN chmod +x ./entrypoint.sh && mkdir -p /app/uploads && chown -R nextjs:nodejs /app/uploads
 

@@ -7,7 +7,10 @@ set -e
 
 echo "Waiting for the database ..."
 for i in $(seq 1 60); do
-  if npx prisma db execute --stdin <<< "SELECT 1" >/dev/null 2>&1; then
+  # `<<<` is a bash here-string. This image runs busybox ash, where it is a
+  # syntax error, so the check would fail 60 times and the container would exit
+  # claiming the database was unreachable even when it was fine.
+  if echo "SELECT 1" | npx prisma db execute --stdin >/dev/null 2>&1; then
     echo "Database is reachable."
     break
   fi

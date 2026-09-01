@@ -2,86 +2,146 @@
 
 This document separates three things that are easy to conflate:
 
-1. **Confirmed** — verified in this codebase or in Tally's own documentation.
-2. **Environment-specific** — depends on Arihant's machine and must be checked there.
+1. **Confirmed** — verified in this codebase, in Tally's own documentation, or
+   established about Arihant's actual environment.
+2. **Environment-specific** — depends on Arihant's setup and must be checked there.
 3. **Not yet tested** — explicitly unproven, and named so nobody assumes otherwise.
 
-Nothing here claims a connection works. The connection test in
-**Admin → Connection** is how that gets established, against the real machine.
+---
+
+## 1. Arihant's environment — established
+
+**Arihant does not run Tally on a machine we can reach.** Their Tally is a
+**third-party hosted web application**: staff open it in a browser and work in a
+web interface — clickable forms and pages, not the keyboard-driven Tally screens
+— and the data lives on the hosting vendor's servers, not on any Arihant
+machine.
+
+This was established directly with the client, and it settles a question the
+original build specification left open. It has one hard consequence:
+
+> **The XML/HTTP adapter cannot apply here.** That adapter needs a Tally process
+> listening on a port the MIS can reach. In this environment there is no such
+> process on any machine Arihant controls, and no port to open. It is not a
+> configuration problem to be solved; the premise does not hold.
+
+Two things follow, and they are the shape of the integration:
+
+* **The file path is not a fallback. It is the integration.** Everything the MIS
+  does — parsing, reconciliation, the whole MIS — is driven by the export that
+  comes out of that hosted product. This is fully built and verified against the
+  real data.
+* **Automation happens on our side of the export.** The MIS cannot pull from a
+  product it cannot reach, so instead it accepts a delivered file without a
+  person: see §2.
+
+### What this changes about the original goal
+
+The goal was to replace this:
+
+```
+Tally  →  export  →  Excel preparation  →  Looker Studio  →  MIS
+```
+
+The export step cannot be removed, because the data only leaves the vendor's
+platform that way. Everything after it can, and has been:
+
+```
+Tally (hosted)  →  export  →  [ drop it in a folder ]  →  MIS
+```
+
+Excel preparation and Looker Studio are gone entirely. What remains is one
+export, and even that becomes unattended if the vendor's platform can write to a
+folder or POST on a schedule (§2).
 
 ---
 
-## 1. Where the integration stands
+## 2. How data actually gets in
 
-| | Status |
-|---|---|
-| Adapter interface | **Implemented.** `src/lib/tally/types.ts` |
-| XML/HTTP adapter | **Implemented.** `src/lib/tally/xml-http.ts` |
-| Connection test + capability probe | **Implemented.** Admin → Connection |
-| Sync engine (vouchers to canonical facts) | **Implemented.** `src/lib/tally/sync.ts` |
-| Sync history and error log | **Implemented.** |
-| Scheduled sync | **Implemented** as a cron-able script, gated (see §5). |
-| Connection to Arihant's Tally | **Not yet tested.** Requires access to the machine. |
-| JSON adapter | **Not implemented** — see §6. |
-| ODBC adapter | **Not implemented** — see §6. |
-| Writing back to Tally | **Not implemented, and deliberately absent** — see §7. |
+Three doors, all using the same parser, the same reconciliation and the same
+safety rule.
 
-The file-import path is complete and is the supported way to load data until
-the connection test passes. The MIS cannot tell the two sources apart once the
-data is normalized, so nothing about the dashboard changes when Tally is
-connected.
+| Route | For | Command |
+|---|---|---|
+| **Browser upload** | Ad-hoc, and anything needing a decision | *Imports → Upload a file* |
+| **Watched folder** | The routine monthly load | `npm run ingest` from cron |
+| **Push endpoint** | A scheduler that can deliver the file itself | `POST /api/imports/ingest` |
 
----
+### The safety rule
 
-## 2. Confirmed facts
+The unattended routes import a file **only when nothing about it needs a
+person**: it parses without blockers, every column maps confidently, and all
+five reconciliation identities hold. Anything else is held, with the reasons
+written out.
 
-* **Tally can act as an HTTP server.** Tally.ERP 9 and TallyPrime can open a
-  listener on the machine running Tally, configured under
-  *Help → Settings → Connectivity → Client/Server configuration*, with
-  "TallyPrime acts as" set to **Server** or **Both** and a port (9000 by
-  convention). Requests are XML envelopes POSTed to that port.
+This is not caution for its own sake. An unattended importer that silently
+accepted a file whose totals did not balance would be worse than no automation —
+it would put wrong figures in front of management with no one having looked.
 
-* **The request format this adapter uses** is Tally's documented "Export Data"
-  envelope: `ENVELOPE > HEADER(TALLYREQUEST=Export) + BODY > DESC >
-  STATICVARIABLES / TDL`. The adapter builds collection requests for companies,
-  groups, ledgers and cost centres, and a Day Book request for vouchers.
+### Watched folder
 
-* **Tally reports request-level errors inside an HTTP 200.** A malformed or
-  unsupported request returns `<LINEERROR>` in the body rather than a non-2xx
-  status. The adapter checks for this explicitly; treating HTTP 200 as success
-  would silently produce empty reports.
+```bash
+# .env
+INGEST_DIR=./uploads/inbox
+```
 
-* **TallyPrime 7.0 documents native JSON exchange** of masters, transactions and
-  reports. That is a documented capability of that version — not a statement
-  about which version Arihant runs.
+Drop the export in that folder. A scheduled run analyses it and either imports
+it or moves it to `needs-review/` with a `.txt` beside it naming exactly what a
+person needs to resolve. Files are **moved, never deleted**, and are timestamped
+so re-dropping the same filename never overwrites anything.
 
-## 3. Environment-specific — must be checked on Arihant's machine
+```bash
+npm run ingest -- --dry-run    # report only, change nothing
+npm run ingest                 # do it
+```
 
-None of these can be answered from here:
+Exits non-zero when anything was held, so cron reports it rather than swallowing
+it. Cron entry in [`deployment.md`](./deployment.md).
 
-| Question | How to answer it |
-|---|---|
-| Which Tally product and version is installed? | The connection test reports it when it connects; otherwise read it from Tally's title bar. |
-| Is the connectivity listener enabled? | *Help → Settings → Connectivity* in Tally. |
-| Which host and port? | Same screen. The MIS defaults to `localhost:9000`. |
-| Does the licence/edition permit the listener? | Tally support, or simply whether the test connects. |
-| Is a company open? | Tally returns no data when no company is loaded. |
-| Does the exact company name match? | The connection settings must use the name exactly as Tally shows it. |
-| Can the MIS host reach the Tally host? | Firewall and network. When the MIS runs in Docker on the same server, use `host.docker.internal`. |
+### Push endpoint
 
-## 4. Not yet tested
+Off unless `INGEST_API_KEY` is set to at least 24 characters, and it returns 503
+saying so rather than sitting open.
 
-* Whether Arihant's Tally answers the request envelopes this adapter sends.
-* Whether the Day Book export includes cost-centre allocations for their chart
-  of accounts.
-* How long a full-month voucher export takes on their data volume.
-* Whether their ledger names follow the
-  `Arihant Academy (CBSE) - Charkop (CKP)` convention consistently enough to
-  derive branch and stream from them (§5).
+```bash
+curl -X POST https://mis.arihant.internal/api/imports/ingest \
+     -H "Authorization: Bearer $INGEST_API_KEY" \
+     -F "file=@monthly-export.xlsx"
+```
+
+Returns `200` imported or duplicate, `202` held for review with the reasons, and
+`422` when the file could not be read at all. The key permits **depositing a
+file only** — it grants no read access to any figure and cannot delete anything.
 
 ---
 
-## 5. How Tally data maps onto the MIS model
+## 3. What to ask the hosting vendor
+
+Worth asking, in descending order of usefulness. Each turns the one remaining
+manual step into nothing.
+
+1. **Can the platform export on a schedule** to a folder, an email address, FTP,
+   or a URL? If it can POST, point it at the ingest endpoint and the chain is
+   fully automatic. If it can drop a file on a share the server can see, point
+   `INGEST_DIR` at that share.
+2. **Is there an API** for reports or vouchers? If so, it becomes a new adapter
+   behind the existing `TallyAdapter` interface — nothing else in the
+   application changes (§6).
+3. **Is the underlying Tally reachable at all** — a VPN, a fixed IP, an opened
+   port? Unlikely on a shared hosted plan, but if yes, the XML/HTTP adapter
+   already exists and the connection test would confirm it.
+4. **What formats can it export?** `.xlsx` and `.csv` both work. The parser does
+   not depend on a fixed column layout, so a format change is not a rebuild.
+
+Until one of those is answered, the watched folder is the automation, and it
+works today.
+
+---
+
+## 4. How Tally data would map onto the MIS model
+
+This section applies **only if** a direct connection ever becomes possible
+(§3). It is not how data reaches the MIS today.
 
 Tally has no notion of Arihant's *branch* and *stream*. Their chart of accounts
 encodes those in the ledger-group caption:
@@ -122,9 +182,15 @@ sync with no history looks back 400 days. Both are overridable per run.
 
 ---
 
-## 6. Why the other adapters are declared but not implemented
+## 5. The adapter interface, and why it stays
 
-`ADAPTERS` in `src/lib/tally/index.ts` lists three, of which one is available.
+The interface stays because it costs nothing and it is the right shape for
+whatever comes next. If the hosting vendor exposes an API, that becomes one new
+class implementing `TallyAdapter` — the MIS engine, the database and the
+dashboard do not change, because nothing above the normalizer knows where data
+came from.
+
+`ADAPTERS` in `src/lib/tally/index.ts` lists three, of which one is implemented.
 The other two are listed, disabled, with the reason shown in the admin UI.
 
 * **JSON over HTTP.** TallyPrime 7.0 documents it, but implementing an adapter
@@ -140,7 +206,7 @@ the application changes.
 
 ---
 
-## 7. Read-only, by construction
+## 6. Read-only, by construction
 
 The `TallyAdapter` interface has **no write method**. There is no code path
 anywhere in this application that creates, alters or deletes a Tally voucher,
@@ -156,7 +222,7 @@ write support would require changing the interface, which is the point.
 
 ---
 
-## 8. Running the connection test
+## 7. Running the connection test
 
 1. **Admin → Connection**.
 2. Set the adapter (XML over HTTP), host, port and the Tally company name
@@ -183,7 +249,7 @@ it is fully supported and produces the identical MIS.
 
 ---
 
-## 9. Docker note
+## 8. Docker note
 
 When the MIS runs in Docker on the same server as Tally, `localhost` inside the
 container is the container, not the server. Use `host.docker.internal`, which
@@ -192,7 +258,7 @@ container is the container, not the server. Use `host.docker.internal`, which
 
 ---
 
-## 10. Security
+## 9. Security
 
 * Connection settings are stored server-side and read only by server code.
 * `redactConnection` defines what may reach the browser: adapter, host, port,

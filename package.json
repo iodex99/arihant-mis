@@ -20,7 +20,8 @@
     "verify:reference": "tsx scripts/verify-reference.ts",
     "build:cli": "node scripts/build-cli.mjs",
     "maintenance": "tsx scripts/maintenance.ts",
-    "sync:tally": "tsx scripts/sync-tally.ts"
+    "sync:tally": "tsx scripts/sync-tally.ts",
+    "ingest": "tsx scripts/ingest-folder.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",

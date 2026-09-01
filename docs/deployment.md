@@ -165,6 +165,11 @@ crontab -e
 # abandoned uploads, remove expired sessions. Never touches financial records.
 30 2 * * 0 cd /opt/arihant-mis && docker compose exec -T app node dist/cli/maintenance.js >> /var/log/arihant-mis-maintenance.log 2>&1
 
+# Hourly ingest — imports any export dropped in INGEST_DIR. Imports only what
+# needs no human decision; anything else moves to needs-review/ and this exits
+# non-zero so cron tells you.
+15 * * * * cd /opt/arihant-mis && docker compose exec -T app node dist/cli/ingest-folder.js >> /var/log/arihant-mis-ingest.log 2>&1
+
 # Hourly Tally sync. Does nothing unless TALLY_SYNC_ENABLED=true and the
 # connection is enabled in Admin -> Connection, so it is safe to add before
 # Tally connectivity has been confirmed.

@@ -80,8 +80,20 @@ interface SheetSpec {
   rows: (string | number | null)[][];
 }
 
+/**
+ * Pinned so the workbook metadata does not vary between builds.
+ *
+ * This is not enough to make an xlsx byte-stable — the zip container stamps
+ * each entry with the time it was written, so two builds a second apart still
+ * differ. Anything that needs byte-identical input (content deduplication)
+ * must use the CSV fixture, which is plain string construction.
+ */
+const FIXED_TIMESTAMP = new Date('2026-01-01T00:00:00.000Z');
+
 async function toBuffer(sheets: SheetSpec[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
+  wb.created = FIXED_TIMESTAMP;
+  wb.modified = FIXED_TIMESTAMP;
   for (const s of sheets) {
     const ws = wb.addWorksheet(s.name);
     for (const row of s.rows) ws.addRow(row);

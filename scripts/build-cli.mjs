@@ -24,6 +24,7 @@ const COMMANDS = [
   'import-file',
   'maintenance',
   'sync-tally',
+  'ingest-folder',
   'verify-reference',
 ];
 

@@ -14,8 +14,11 @@ with
 Tally  →  Arihant MIS  →  MIS
 ```
 
-and keeps a robust Excel/CSV upload path as the fallback — or as the primary
-route, until Tally connectivity has been confirmed on Arihant's own server.
+Arihant's Tally is a **third-party hosted web application** — there is no Tally
+process on any machine we can reach — so the export is how data leaves that
+platform. Everything after it is gone: the MIS ingests the export directly, and
+a scheduled run imports it unattended, so nobody prepares a spreadsheet or
+touches Looker Studio again.
 
 ---
 
@@ -38,8 +41,13 @@ route, until Tally connectivity has been confirmed on Arihant's own server.
   called out rather than left to be discovered.
 * **Drill-down** from branch to expense group to expense head to the exact
   spreadsheet row a figure came from.
-* **A Tally adapter** with a connection test and capability probe. Read-only by
-  construction — there is no write path.
+* **Unattended ingestion.** Drop the export in a watched folder, or POST it to
+  an authenticated endpoint, and it imports itself — but only when nothing about
+  it needs a person. Anything ambiguous, or that fails reconciliation, is held
+  with the reasons written out.
+* **A Tally adapter** with a connection test and capability probe, kept for the
+  day a direct connection becomes possible. Read-only by construction — there is
+  no write path.
 
 ### Verified against the client's own report
 
@@ -187,6 +195,8 @@ npm run import:file -- "for reference/Arihant.xlsx"             # import
 | `APP_URL` | `http://localhost:3000` | Must match the public URL; `https://` makes cookies `Secure` |
 | `APP_PORT` | `3000` | Host port |
 | `UPLOAD_DIR` | `./uploads` | Original source files |
+| `INGEST_DIR` | `./uploads/inbox` | Folder watched by `npm run ingest` |
+| `INGEST_API_KEY` | — | Enables `POST /api/imports/ingest`. Blank keeps it disabled |
 | `UPLOAD_RETENTION_DAYS` | `180` | Prunes original files only — parsed rows and figures are kept forever |
 | `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` | `./backups` / `30` | Used by `scripts/backup.sh` |
 | `LOG_LEVEL` | `info` | `debug` adds Tally request timings |
@@ -232,6 +242,8 @@ it would fire once per running copy. Periodic work is a cron entry on the host.
 ```bash
 npm run maintenance -- --dry-run   # show what housekeeping would remove
 npm run maintenance                # prune expired source files, staging, sessions
+npm run ingest -- --dry-run        # show what the watched folder would import
+npm run ingest                     # import what is safe, hold what is not
 npm run sync:tally                 # scheduled Tally sync (no-op unless enabled)
 ```
 
@@ -253,29 +265,30 @@ step stops on failure with the data intact.
 
 ## Tally connectivity
 
-The adapter interface, the XML/HTTP implementation, the connection test, the
-capability probe and the sync engine are all built. **Whether Arihant's
-particular Tally installation will accept a connection is a fact about that
-machine, and this repository does not claim to know it.**
+**Arihant's Tally is a third-party hosted web application.** Staff use it in a
+browser and the data sits on the vendor's servers, so there is no Tally process
+on any machine we can reach and nothing to connect a port to. The XML/HTTP
+adapter cannot apply in that environment — the premise does not hold.
 
-Configure and test in **Admin → Connection**. The test reports the Tally version,
-round-trip time, and each capability probed independently, so a partly-working
-environment is visible rather than reduced to a single tick. Enable sync only
-after it succeeds.
+What that means in practice: the export out of that platform is the integration,
+and the automation is on our side of it. Drop the file in `INGEST_DIR` and a
+scheduled `npm run ingest` imports it; or have the platform POST it to
+`/api/imports/ingest`. Either way it is imported only when nothing about it
+needs a person to confirm it.
 
-The integration is **read-only by construction** — the `TallyAdapter` interface
-has no write method, so there is no code path that could modify a voucher,
-ledger or master.
+The adapter interface stays, because if the vendor exposes an API it becomes one
+new class and nothing above the normalizer changes. It is **read-only by
+construction** — there is no write method to implement.
 
-See [`docs/tally-integration.md`](docs/tally-integration.md) for the confirmed /
-environment-specific / untested breakdown.
+See [`docs/tally-integration.md`](docs/tally-integration.md) for what is
+established, what to ask the vendor, and what remains untested.
 
 ---
 
 ## Tests
 
 ```bash
-npm test           # 150 tests
+npm test           # 162 tests
 npm run typecheck
 npm run verify:reference   # asserts every figure in the supplied PDF
 ```
